@@ -91,5 +91,54 @@ class VirtualFileSystem:
     def is_dir(self, path):
         """Проверить, является ли путь каталогом."""
         return self._normalize(path) in self.directories
+    def list_dir(self, path="."):
+        """Возвращает содержимое виртуального каталога."""
+        path = self._normalize(path)
+
+        if path not in self.directories:
+            raise ValueError(
+                f"каталог не найден: {path}"
+            )
+
+        entries = set()
+
+        for directory in self.directories:
+            if directory == path:
+                continue
+
+            parent = posixpath.dirname(directory)
+
+            if parent == path:
+                entries.add(
+                    posixpath.basename(directory) + "/"
+                )
+
+        for file_path in self.files:
+            parent = posixpath.dirname(file_path)
+
+            if parent == path:
+                entries.add(
+                    posixpath.basename(file_path)
+                )
+
+        return sorted(entries)
+
+    def change_dir(self, path="/"):
+        """Изменяет текущий каталог VFS."""
+        if not path:
+            path = "/"
+
+        target = self._normalize(path)
+
+        if target not in self.directories:
+            raise ValueError(
+                f"каталог не найден: {target}"
+            )
+
+        self.current_dir = target
+
+    def get_current_dir(self):
+        """Возвращает текущий каталог VFS."""
+        return self.current_dir
 
 

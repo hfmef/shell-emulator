@@ -1,0 +1,12 @@
+ls
+cd level1
+ls
+cd level2
+ls
+cd level3
+ls
+echo Привет мир
+whoami
+uptime
+cd /missing
+unknown-command

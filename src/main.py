@@ -1,7 +1,8 @@
-"""Графический эмулятор оболочки. Этап 3: VFS."""
+"""Графический эмулятор оболочки. Этап 4: основные команды."""
 
 import getpass
 import socket
+import time
 import tkinter as tk
 from tkinter import scrolledtext
 
@@ -38,19 +39,26 @@ class EmulatorWindow:
         self.root = root
         self.configuration = configuration
         self.closed = False
+        self.start_time = time.monotonic()
 
         self.root.title(get_window_title())
-        self.root.geometry(f"{WINDOW_WIDTH}x{WINDOW_HEIGHT}")
+        self.root.geometry(
+            f"{WINDOW_WIDTH}x{WINDOW_HEIGHT}"
+        )
 
         self.create_widgets()
 
         self.add_output("Параметры запуска:")
-        self.add_output(self.configuration.dump())
+        self.add_output(
+            self.configuration.dump()
+        )
 
         if not self.initialize_vfs():
             return
 
-        self.root.after_idle(self.run_startup_script)
+        self.root.after_idle(
+            self.run_startup_script
+        )
 
     def create_widgets(self):
         """Создаёт поле ввода, кнопку и область вывода."""
@@ -59,7 +67,10 @@ class EmulatorWindow:
             padx=PADDING,
             pady=PADDING,
         )
-        frame.pack(fill=tk.BOTH, expand=True)
+        frame.pack(
+            fill=tk.BOTH,
+            expand=True,
+        )
 
         label = tk.Label(
             frame,
@@ -125,18 +136,25 @@ class EmulatorWindow:
 
     def add_output(self, message):
         """Добавляет сообщение и прокручивает вывод вниз."""
-        self.output.configure(state=tk.NORMAL)
+        self.output.configure(
+            state=tk.NORMAL
+        )
         self.output.insert(
             tk.END,
             f"{message}\n",
         )
-        self.output.configure(state=tk.DISABLED)
+        self.output.configure(
+            state=tk.DISABLED
+        )
         self.output.see(tk.END)
 
     def execute_command(self):
         """Передаёт введённую строку на выполнение."""
         user_input = self.command_entry.get()
-        self.command_entry.delete(0, tk.END)
+        self.command_entry.delete(
+            0,
+            tk.END,
+        )
         self.execute_line(user_input)
 
     def execute_line(
@@ -145,12 +163,15 @@ class EmulatorWindow:
         line_number=None,
     ):
         """Выполняет строку и показывает ошибки."""
-        command, arguments = parse_input(user_input)
+        command, arguments = parse_input(user_input
+        )
 
         if not command:
             return
 
-        self.add_output(f"> {user_input}")
+        self.add_output(
+            f"> {user_input}"
+        )
 
         try:
             self.dispatch_command(
@@ -193,11 +214,20 @@ class EmulatorWindow:
                 self.configuration.dump()
             )
 
-        elif command in {"ls", "cd"}:
-            self.run_stub(
-                command,
-                arguments,
-            )
+        elif command == "ls":
+            self.command_ls(arguments)
+
+        elif command == "cd":
+            self.command_cd(arguments)
+
+        elif command == "echo":
+            self.command_echo(arguments)
+
+        elif command == "whoami":
+            self.command_whoami(arguments)
+
+        elif command == "uptime":
+            self.command_uptime(arguments)
 
         else:
             raise ValueError(
@@ -216,28 +246,74 @@ class EmulatorWindow:
                 "не принимает аргументы."
             )
 
-    def run_stub(
-        self,
-        command,
-        arguments,
-    ):
-        """Выполняет заглушки команд ls и cd."""
-        if (
-            command == "cd"
-            and len(arguments) > MAX_CD_ARGUMENTS
-        ):
+    def command_ls(self, arguments):
+        """Показывает содержимое каталога VFS."""
+        if len(arguments) > 1:
+            raise ValueError(
+                "команда ls принимает "
+                "не более одного аргумента."
+            )
+
+        path = (
+            arguments[0]
+            if arguments
+            else "."
+        )
+
+        entries = self.vfs.list_dir(path)
+
+        if entries:
+            self.add_output(
+                "  ".join(entries)
+            )
+
+    def command_cd(self, arguments):
+        """Изменяет текущий каталог VFS."""
+        if len(arguments) > MAX_CD_ARGUMENTS:
             raise ValueError(
                 "команда cd принимает "
                 "не более одного аргумента."
             )
 
-        arguments_text = (
-            " ".join(arguments) or "нет"
+        path = (
+            arguments[0]
+            if arguments
+            else "/"
+        )
+
+        self.vfs.change_dir(path)
+
+    def command_echo(self, arguments):
+        """Выводит переданные аргументы."""
+        self.add_output(
+            " ".join(arguments)
+        )
+
+    def command_whoami(self, arguments):
+        """Показывает имя текущего пользователя."""
+        self.require_no_arguments(
+            "whoami",
+            arguments,
         )
 
         self.add_output(
-            f"Команда-заглушка: {command}; "
-            f"аргументы: {arguments_text}."
+            getpass.getuser()
+        )
+
+    def command_uptime(self, arguments):
+        """Показывает время работы эмулятора."""
+        self.require_no_arguments(
+            "uptime",
+            arguments,
+        )
+
+        seconds = int(
+            time.monotonic()
+            - self.start_time
+        )
+
+        self.add_output(
+            f"Эмулятор работает {seconds} сек."
         )
 
     def run_startup_script(self):
@@ -248,7 +324,9 @@ class EmulatorWindow:
             return
 
         try:
-            commands = read_startup_script(path)
+            commands = read_startup_script(
+                path
+            )
         except ValueError as error:
             self.add_output(
                 f"Ошибка: {error}"
@@ -260,8 +338,7 @@ class EmulatorWindow:
         )
 
         for line_number, command in commands:
-            self.execute_line(
-                command,
+            self.execute_line(command,
                 line_number,
             )
 
@@ -269,7 +346,8 @@ class EmulatorWindow:
                 return
 
         self.add_output(
-            "Выполнение стартового скрипта завершено."
+            "Выполнение стартового скрипта "
+            "завершено."
         )
 
     def on_enter(self, event):
@@ -282,11 +360,15 @@ def main():
     configuration = parse_arguments()
 
     root = tk.Tk()
+
     EmulatorWindow(
         root,
         configuration,
     )
+
     root.mainloop()
 
 if __name__ == "__main__":
     main()
+
+
