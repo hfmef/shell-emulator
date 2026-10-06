@@ -1,4 +1,4 @@
-"""Графический эмулятор оболочки. Этап 2: конфигурация."""
+"""Графический эмулятор оболочки. Этап 3: VFS."""
 
 import getpass
 import socket
@@ -7,6 +7,7 @@ from tkinter import scrolledtext
 
 from config import parse_arguments
 from startup import read_startup_script
+from vfs import VirtualFileSystem
 
 WINDOW_WIDTH = 700
 WINDOW_HEIGHT = 450
@@ -33,59 +34,117 @@ class EmulatorWindow:
     """Создаёт окно и обрабатывает команды пользователя."""
 
     def __init__(self, root, configuration):
-        """Настраивает окно и планирует выполнение скрипта."""
+        """Настраивает окно, VFS и выполнение скрипта."""
         self.root = root
         self.configuration = configuration
         self.closed = False
+
         self.root.title(get_window_title())
         self.root.geometry(f"{WINDOW_WIDTH}x{WINDOW_HEIGHT}")
+
         self.create_widgets()
+
         self.add_output("Параметры запуска:")
         self.add_output(self.configuration.dump())
+
+        if not self.initialize_vfs():
+            return
+
         self.root.after_idle(self.run_startup_script)
 
     def create_widgets(self):
         """Создаёт поле ввода, кнопку и область вывода."""
-        frame = tk.Frame(self.root, padx=PADDING, pady=PADDING)
+        frame = tk.Frame(
+            self.root,
+            padx=PADDING,
+            pady=PADDING,
+        )
         frame.pack(fill=tk.BOTH, expand=True)
 
-        label = tk.Label(frame, text="Введите команду:")
+        label = tk.Label(
+            frame,
+            text="Введите команду:",
+        )
         label.pack(anchor=tk.W)
 
         self.command_entry = tk.Entry(frame)
-        self.command_entry.pack(fill=tk.X, pady=(0, PADDING))
-        self.command_entry.bind("<Return>", self.on_enter)
+        self.command_entry.pack(
+            fill=tk.X,
+            pady=(0, PADDING),
+        )
+        self.command_entry.bind(
+            "<Return>",
+            self.on_enter,
+        )
 
         run_button = tk.Button(
             frame,
             text="Выполнить",
             command=self.execute_command,
         )
-        run_button.pack(anchor=tk.W, pady=(0, PADDING))
+        run_button.pack(
+            anchor=tk.W,
+            pady=(0, PADDING),
+        )
 
         self.output = scrolledtext.ScrolledText(
             frame,
             height=OUTPUT_HEIGHT,
             state=tk.DISABLED,
         )
-        self.output.pack(fill=tk.BOTH, expand=True)
+        self.output.pack(
+            fill=tk.BOTH,
+            expand=True,
+        )
+
         self.command_entry.focus()
+
+    def initialize_vfs(self):
+        """Загружает VFS или создаёт VFS по умолчанию."""
+        try:
+            self.vfs = VirtualFileSystem(
+                self.configuration.vfs_path
+            )
+        except ValueError as error:
+            self.add_output(
+                f"Ошибка загрузки VFS: {error}"
+            )
+            return False
+
+        if self.configuration.vfs_path:
+            self.add_output(
+                "VFS успешно загружена в память."
+            )
+        else:
+            self.add_output(
+                "Путь к VFS не указан. "
+                "Создана VFS по умолчанию в памяти."
+            )
+
+        return True
 
     def add_output(self, message):
         """Добавляет сообщение и прокручивает вывод вниз."""
         self.output.configure(state=tk.NORMAL)
-        self.output.insert(tk.END, f"{message}\n")
+        self.output.insert(
+            tk.END,
+            f"{message}\n",
+        )
         self.output.configure(state=tk.DISABLED)
         self.output.see(tk.END)
 
     def execute_command(self):
-        """Передаёт введённую пользователем строку на выполнение."""
+        """Передаёт введённую строку на выполнение."""
         user_input = self.command_entry.get()
         self.command_entry.delete(0, tk.END)
         self.execute_line(user_input)
 
-    def execute_line(self, user_input, line_number=None):
-        """Выполняет строку и показывает ошибки с номером строки."""
+    def execute_line(
+        self,
+        user_input,
+        line_number=None,
+    ):
+        """Выполняет строку и показывает ошибки."""
         command, arguments = parse_input(user_input)
 
         if not command:
@@ -94,48 +153,95 @@ class EmulatorWindow:
         self.add_output(f"> {user_input}")
 
         try:
-            self.dispatch_command(command, arguments)
+            self.dispatch_command(
+                command,
+                arguments,
+            )
         except ValueError as error:
             location = ""
-            if line_number is not None:
-                location = f" в строке {line_number} стартового скрипта"
-            self.add_output(f"Ошибка{location}: {error}")
 
-    def dispatch_command(self, command, arguments):
+            if line_number is not None:
+                location = (
+                    f" в строке {line_number} "
+                    "стартового скрипта"
+                )
+
+            self.add_output(
+                f"Ошибка{location}: {error}"
+            )
+
+    def dispatch_command(
+        self,
+        command,
+        arguments,
+    ):
         """Выбирает обработчик команды."""
         if command == "exit":
-            self.require_no_arguments(command, arguments)
+            self.require_no_arguments(
+                command,
+                arguments,
+            )
             self.closed = True
             self.root.destroy()
-        elif command == "conf-dump":
-            self.require_no_arguments(command, arguments)
-            self.add_output(self.configuration.dump())
-        elif command in {"ls", "cd"}:
-            self.run_stub(command, arguments)
-        else:
-            raise ValueError(f"неизвестная команда '{command}'.")
 
-    def require_no_arguments(self, command, arguments):
-        """Отклоняет аргументы у команд, которые их не принимают."""
+        elif command == "conf-dump":
+            self.require_no_arguments(
+                command,
+                arguments,
+            )
+            self.add_output(
+                self.configuration.dump()
+            )
+
+        elif command in {"ls", "cd"}:
+            self.run_stub(
+                command,
+                arguments,
+            )
+
+        else:
+            raise ValueError(
+                f"неизвестная команда '{command}'."
+            )
+
+    def require_no_arguments(
+        self,
+        command,
+        arguments,
+    ):
+        """Отклоняет аргументы у команд без аргументов."""
         if arguments:
             raise ValueError(
-                f"команда {command} не принимает аргументы."
-            )
-            
-    def run_stub(self, command, arguments):
-        """Проверяет аргументы и выводит результат заглушки."""
-        if command == "cd" and len(arguments) > MAX_CD_ARGUMENTS:
-            raise ValueError(
-                "команда cd принимает не более одного аргумента."
+                f"команда {command} "
+                "не принимает аргументы."
             )
 
-        arguments_text = " ".join(arguments) or "нет"
+    def run_stub(
+        self,
+        command,
+        arguments,
+    ):
+        """Выполняет заглушки команд ls и cd."""
+        if (
+            command == "cd"
+            and len(arguments) > MAX_CD_ARGUMENTS
+        ):
+            raise ValueError(
+                "команда cd принимает "
+                "не более одного аргумента."
+            )
+
+        arguments_text = (
+            " ".join(arguments) or "нет"
+        )
+
         self.add_output(
-            f"Команда-заглушка: {command}; аргументы: {arguments_text}."
+            f"Команда-заглушка: {command}; "
+            f"аргументы: {arguments_text}."
         )
 
     def run_startup_script(self):
-        """Выполняет скрипт, сообщая об ошибках и продолжая работу."""
+        """Выполняет стартовый скрипт."""
         path = self.configuration.startup_script
 
         if not path:
@@ -144,29 +250,43 @@ class EmulatorWindow:
         try:
             commands = read_startup_script(path)
         except ValueError as error:
-            self.add_output(f"Ошибка: {error}")
+            self.add_output(
+                f"Ошибка: {error}"
+            )
             return
 
-        self.add_output(f"Стартовый скрипт: {path}")
+        self.add_output(
+            f"Стартовый скрипт: {path}"
+        )
 
         for line_number, command in commands:
-            self.execute_line(command, line_number)
+            self.execute_line(
+                command,
+                line_number,
+            )
+
             if self.closed:
                 return
 
-        self.add_output("Выполнение стартового скрипта завершено.")
+        self.add_output(
+            "Выполнение стартового скрипта завершено."
+        )
 
     def on_enter(self, event):
-        """Обрабатывает нажатие Enter в поле ввода."""
+        """Обрабатывает Enter в поле ввода."""
         self.execute_command()
         return "break"
 
 def main():
-    """Читает настройки и запускает графическое приложение."""
+    """Читает настройки и запускает приложение."""
     configuration = parse_arguments()
+
     root = tk.Tk()
-    EmulatorWindow(root, configuration)
+    EmulatorWindow(
+        root,
+        configuration,
+    )
     root.mainloop()
 
 if __name__ == "__main__":
-    main() 
+    main()
