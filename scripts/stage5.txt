@@ -1,0 +1,14 @@
+ls
+mkdir test
+ls
+cd test
+mkdir inner
+ls
+cd ..
+rmdir test
+rmdir test/inner
+rmdir test
+ls
+mkdir level1
+rmdir missing
+echo Этап 5 завершен

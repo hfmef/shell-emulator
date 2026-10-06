@@ -47,6 +47,7 @@ class VirtualFileSystem:
             raise ValueError(
                 f"VFS file not found: {zip_path}"
             ) from error
+
         except zipfile.BadZipFile as error:
             raise ValueError(
                 f"Invalid VFS ZIP file: {zip_path}"
@@ -55,7 +56,10 @@ class VirtualFileSystem:
     def _normalize(self, path):
         """Привести виртуальный путь к стандартному виду."""
         if not path.startswith("/"):
-            path = posixpath.join(self.current_dir, path)
+            path = posixpath.join(
+                self.current_dir,
+                path,
+            )
 
         path = posixpath.normpath(path)
 
@@ -82,7 +86,11 @@ class VirtualFileSystem:
     def exists(self, path):
         """Проверить существование файла или каталога."""
         path = self._normalize(path)
-        return path in self.files or path in self.directories
+
+        return (
+            path in self.files
+            or path in self.directories
+        )
 
     def is_file(self, path):
         """Проверить, является ли путь файлом."""
@@ -91,6 +99,7 @@ class VirtualFileSystem:
     def is_dir(self, path):
         """Проверить, является ли путь каталогом."""
         return self._normalize(path) in self.directories
+
     def list_dir(self, path="."):
         """Возвращает содержимое виртуального каталога."""
         path = self._normalize(path)
@@ -137,8 +146,73 @@ class VirtualFileSystem:
 
         self.current_dir = target
 
+
     def get_current_dir(self):
         """Возвращает текущий каталог VFS."""
         return self.current_dir
 
+    def make_dir(self, path):
+        """Создаёт новый каталог в VFS."""
+        if not path:
+            raise ValueError(
+                "не указано имя каталога."
+            )
 
+        target = self._normalize(path)
+
+        if self.exists(target):
+            raise ValueError(
+                f"файл или каталог уже существует: {target}"
+            )
+
+        parent = posixpath.dirname(target)
+
+        if parent not in self.directories:
+            raise ValueError(
+                f"родительский каталог не найден: {parent}"
+            )
+
+        self.directories.add(target)
+
+    def remove_dir(self, path):
+        """Удаляет пустой каталог из VFS."""
+        if not path:
+            raise ValueError(
+                "не указано имя каталога."
+            )
+
+        target = self._normalize(path)
+
+        if target == "/":
+            raise ValueError(
+                "нельзя удалить корневой каталог."
+            )
+
+        if target not in self.directories:
+            raise ValueError(
+                f"каталог не найден: {target}"
+            )
+
+        prefix = target + "/"
+
+        for directory in self.directories:
+            if (
+                directory != target
+                and directory.startswith(prefix)
+            ):
+                raise ValueError(
+                    f"каталог не пуст: {target}"
+                )
+
+        for file_path in self.files:
+            if file_path.startswith(prefix):
+                raise ValueError(
+                    f"каталог не пуст: {target}"
+                )
+
+        if self.current_dir == target:
+            raise ValueError(
+                "нельзя удалить текущий каталог."
+            )
+
+        self.directories.remove(target) 

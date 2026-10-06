@@ -1,4 +1,4 @@
-"""Графический эмулятор оболочки. Этап 4: основные команды."""
+"""Графический эмулятор оболочки. Этап 5: операции с VFS."""
 
 import getpass
 import socket
@@ -229,6 +229,12 @@ class EmulatorWindow:
         elif command == "uptime":
             self.command_uptime(arguments)
 
+        elif command == "mkdir":
+            self.command_mkdir(arguments)
+
+        elif command == "rmdir":
+            self.command_rmdir(arguments)
+
         else:
             raise ValueError(
                 f"неизвестная команда '{command}'."
@@ -244,6 +250,18 @@ class EmulatorWindow:
             raise ValueError(
                 f"команда {command} "
                 "не принимает аргументы."
+            )
+
+    def require_one_argument(
+        self,
+        command,
+        arguments,
+    ):
+        """Проверяет наличие ровно одного аргумента."""
+        if len(arguments) != 1:
+            raise ValueError(
+                f"команда {command} "
+                "принимает ровно один аргумент."
             )
 
     def command_ls(self, arguments):
@@ -316,6 +334,28 @@ class EmulatorWindow:
             f"Эмулятор работает {seconds} сек."
         )
 
+    def command_mkdir(self, arguments):
+        """Создаёт каталог в виртуальной файловой системе."""
+        self.require_one_argument(
+            "mkdir",
+            arguments,
+        )
+
+        self.vfs.make_dir(
+            arguments[0]
+        )
+
+    def command_rmdir(self, arguments):
+        """Удаляет пустой каталог из виртуальной файловой системы."""
+        self.require_one_argument(
+            "rmdir",
+            arguments,
+        )
+
+        self.vfs.remove_dir(
+            arguments[0]
+        )
+
     def run_startup_script(self):
         """Выполняет стартовый скрипт."""
         path = self.configuration.startup_script
@@ -338,7 +378,8 @@ class EmulatorWindow:
         )
 
         for line_number, command in commands:
-            self.execute_line(command,
+            self.execute_line(
+                command,
                 line_number,
             )
 
